@@ -11,35 +11,51 @@
  */
 
 const char* Varstore::readSSID(){
-    return _ssid;
+        return _ssid;
 }
 
 const char* Varstore::readPassword(){
-    return _password;
+        return _password;
 }
 
 const char* Varstore::readDeviceName(){
-    return _deviceName;
+        return _deviceName;
 }
 
 const int Varstore::readDeviceID(){
-    return _deviceID;
+        return _deviceID;
 }
 
 const int Varstore::readButtonPinIP(){
-    return _buttonPinIP;
+        return _buttonPinIP;
 }
 
 const int Varstore::readButtonPinTemp(){
-    return _buttonPinTemp;
+        return _buttonPinTemp;
 }
 
 const int Varstore::readButtonPinDisplay(){
-    return _buttonPinDisplay;
+        return _buttonPinDisplay;
 }
 
 const int Varstore::readServerPort(){
-    return _webServerPort;
+        return _webServerPort;
+}
+
+const int Varstore::readSCK(){
+        return _BME_SCK;
+}
+
+const int Varstore::readMISO(){
+        return _BME_MISO;
+}
+
+const int Varstore::readMOSI(){
+        return _BME_MOSI;
+}
+
+const int Varstore::readCS(){
+        return _BME_CS;
 }
 
 /**
@@ -48,7 +64,7 @@ const int Varstore::readServerPort(){
  * @return MAC Address
  */
 char* Varstore::readHardwareID() {
-    return _hardwareID;
+        return _hardwareID;
 }
 
 /**
@@ -62,5 +78,5 @@ char* Varstore::readHardwareID() {
  * @return                         [description]
  */
 char* Varstore::setHardwareID(char* id) {
-    _hardwareID = id;
+        _hardwareID = id;
 }

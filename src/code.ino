@@ -7,35 +7,27 @@
 #include <ESP8266WebServer.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Adafruit_BME280.h>
 #include "Pubvars.h"
 // needed to avoid link error on ram check
 extern "C" {
   #include "user_interface.h"
-  uint16 readvdd33(void);
+uint16 readvdd33(void);
 }
 ADC_MODE(ADC_VCC);
 
-
-
-#define BME_SCK 13
-#define BME_MISO 12
-#define BME_MOSI 11
-#define BME_CS 10
+#define BME_SCK vault.readSCK();
+#define BME_MISO vault.readMISO();
+#define BME_MOSI vault.readMISO();
+#define BME_CS vault.readCS();
 #define SEALEVELPRESSURE_HPA (1013.25)
+#define OLED_RESET 3
 
 Adafruit_BME280 bme; // I2C
 
 unsigned long delayTime;
 
-
-#define OLED_RESET 3
 Adafruit_SSD1306 display(OLED_RESET);
-
-
-if (!bme.begin()) {
-  Serial.println("Could not find a valid BME280 sensor, check wiring!");
-  while (1);
-}
 
 //Button A is #0
 //Button B is #16
@@ -80,59 +72,59 @@ int lastArea                        = 9;
 
 WiFiServer server(vault.readServerPort());
 
-float pfDew,pfHum,pfTemp,pfVcc,pfTempF,battery;     // Setting up some variable states
+float Dewpoint,Humidity,Temperature,pfVcc,TemperatureF,battery,Altitude,Pressure;     // Setting up some variable states
 
 
 String macToStr(const uint8_t* mac) {
-  String result;
-  for (int i = 0; i < 6; ++i) {
-    result += String(mac[i], 16);
-    if (i < 5)
-      result += ':';
-  }
-  return result;
+        String result;
+        for (int i = 0; i < 6; ++i) {
+                result += String(mac[i], 16);
+                if (i < 5)
+                        result += ':';
+        }
+        return result;
 }
 
 void connectionInfo () {
-    if(lastArea != 0){
-        display.clearDisplay();
-        display.display();
-        display.setTextSize(1);
-        display.setTextColor(WHITE);
-        display.setCursor(0,0);
-        display.println(vault.readSSID());
-        display.println(WiFi.localIP());
-        WiFi.macAddress(mac);
-        hardwareID = macToStr(mac);
-        // display.println("Device Location");
-        display.println(vault.readDeviceName());
-        // display.println("");
-        display.println(hardwareID);
-        display.display();
-    }
+        if(lastArea != 0) {
+                display.clearDisplay();
+                display.display();
+                display.setTextSize(1);
+                display.setTextColor(WHITE);
+                display.setCursor(0,0);
+                display.println(vault.readSSID());
+                display.println(WiFi.localIP());
+                WiFi.macAddress(mac);
+                hardwareID = macToStr(mac);
+                // display.println("Device Location");
+                display.println(vault.readDeviceName());
+                // display.println("");
+                display.println(hardwareID);
+                display.display();
+        }
 }
 /**
  * Display Temperature data to OLED screen
  * @method displayTempValues
  */
 void displayTempValues(){
-        if( pfTemp > 0) { // We are only going to show data if we have data
-            if(lastArea !=1){
-                display.clearDisplay();
-                display.display();
-                display.setCursor(0,0);
-                display.setTextSize(1);
-                display.setTextColor(WHITE);
-                display.print("Temp C: ");
-                display.println(pfTemp);
-                display.print("Temp F: ");
-                display.println(pfTempF);
-                display.print("Humidity: ");
-                display.println(pfHum);
-                display.print("Duepoint: ");
-                display.println(pfDew);
-                display.display();
-            }
+        if( Temperature > 0) { // We are only going to show data if we have data
+                if(lastArea !=1) {
+                        display.clearDisplay();
+                        display.display();
+                        display.setCursor(0,0);
+                        display.setTextSize(1);
+                        display.setTextColor(WHITE);
+                        display.print("Temp C: ");
+                        display.println(Temperature);
+                        display.print("Temp F: ");
+                        display.println(TemperatureF);
+                        display.print("Humidity: ");
+                        display.println(Humidity);
+                        display.print("pressure hPa: ");
+                        display.println(Pressure);
+                        display.display();
+                }
         }
 }
 /**
@@ -140,23 +132,21 @@ void displayTempValues(){
  * @method readTempValues
  */
 void readTempValues() {
-        // pfTemp = dht.readTemperature();
-        // pfHum = dht.readHumidity();
-        // pfTempF = dht.readTemperature(true);
-        // float a = 17.67;
-        // float b = 243.5;
-        // float alpha = (a * pfTemp)/(b + pfTemp) + log(pfHum/100);
-        // pfDew = (b * alpha)/(a - alpha);
-        //
-        // pfDew = pfTemp - ((100 - pfHum )/5);
-        //
-        // displayTempValues();
-        //
-        //
-        // Serial.println(pfTemp);
-        // Serial.println(pfTempF);
-        // Serial.println(pfHum);
-        // Serial.println(pfDew);
+        Temperature = bme.readTemperature();
+        Humidity = bme.readHumidity();
+        Altitude = bme.readAltitude(SEALEVELPRESSURE_HPA);
+        Pressure = bme.readPressure() / 100.0F;
+        TemperatureF = ((Temperature*9)/5)+32;
+
+        Dewpoint = Temperature - ((100 - Humidity )/5);
+
+        displayTempValues();
+        Serial.println(Temperature);
+        Serial.println(TemperatureF);
+        Serial.println(Humidity);
+        Serial.println(Dewpoint);
+        Serial.println(Pressure);
+        Serial.println(Altitude);
 }
 void showDisplay(){
         if(toggleDisplay) { //The display is to be shown
@@ -189,10 +179,12 @@ JsonObject& prepareResponse(JsonBuffer& jsonBuffer) {
         root["DeviceName"] = vault.readDeviceName();
         root["DeviceID"] = vault.readDeviceID();
         root["HardwareID"] = hardwareID;
-        // root["tempF"] = pfTempF;
-        // root["tempC"] = pfTemp;
-        // root["humidity"] = pfHum;
-        // root["dewpoint"] = pfDew;
+        root["tempF"] = TemperatureF;
+        root["tempC"] = Temperature;
+        root["humidity"] = Humidity;
+        root["altitude"] = Altitude;
+        root["pressure"] = Pressure;
+        root["dewpoint"] = Dewpoint;
         // root["SystemV"]["pfVcc"] = pfVcc/1000,3;
         // root["SystemV"]["battery"] = battery/1000,3;
         return root;
@@ -219,6 +211,8 @@ void setup() {
         display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // initialize with the I2C addr 0x3C (for the 128x32)
         delay(200);
 
+
+
         // Clear the buffer.
         display.clearDisplay();
         while (WiFi.status() != WL_CONNECTED) {
@@ -228,9 +222,6 @@ void setup() {
                 Serial.print("Connecting to: ");
                 Serial.print(vault.readSSID());
                 Serial.println("");
-                // Serial.print("Password: ");
-                // Serial.print(vault.readPassword());
-                // Serial.println("");
                 Serial.print("Status: ");
                 Serial.print(WiFi.status());
                 Serial.println("");
@@ -250,12 +241,11 @@ void setup() {
                 tracker++;
         }
 
-
         // default settings
-        status = bme.begin();
+        status = bme.begin(); // Start Sensor
         if (!status) {
-            Serial.println("Could not find a valid BME280 sensor, check wiring!");
-            while (1);
+                Serial.println("Could not find a valid BME280 sensor, check wiring!");
+                while (1) ;
         }
 
 
