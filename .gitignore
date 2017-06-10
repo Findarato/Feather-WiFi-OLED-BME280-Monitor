@@ -1,6 +1,6 @@
 .pioenvs
 Pubvars.h
-Pubvars.h.*
+Pubvars.h.gch
 .piolibdeps
 .clang_complete
 .gcc-flags.json
