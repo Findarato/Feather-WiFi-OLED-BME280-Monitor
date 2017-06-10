@@ -1,0 +1,6 @@
+.pioenvs
+Pubvars.h
+Pubvars.h.*
+.piolibdeps
+.clang_complete
+.gcc-flags.json
