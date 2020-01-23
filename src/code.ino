@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -9,6 +10,7 @@
 #include <ESP8266WebServer.h>
 #include <Adafruit_BME280.h>
 #include "Pubvars.h"
+
 // needed to avoid link error on ram check
 
 #define BME_SCK                 vault.readSCK();
@@ -46,6 +48,7 @@ byte mac[6];                                        // the MAC address of your W
 String hardwareID;                                  // Display of the mac address
 Varstore vault;
 int lastArea                        = 9;
+int timeOut = 0; // Tracks how long it has been since the last check
 
 WiFiServer server(vault.readServerPort());
 
@@ -144,40 +147,89 @@ bool readRequest(WiFiClient& client) {
     }
     return false;
 }
-
-JsonObject& prepareResponse(JsonBuffer& jsonBuffer) {
+JsonDocument prepareResponse(JsonDocument jsonDoc){
 
         long rssi = WiFi.RSSI();
-        Serial.print("RSSI:");
-        Serial.println(rssi);
-        JsonObject& root = jsonBuffer.createObject();
-        root["DeviceName"] = vault.readDeviceName();
-        root["DeviceID"] = vault.readDeviceID();
-        root["HardwareID"] = hardwareID;
-        root["tempF"] = TemperatureF;
-        root["tempC"] = Temperature;
-        root["humidity"] = Humidity;
-        root["altitude"] = Altitude;
-        root["pressure"] = Pressure;
-        root["dewpoint"] = Dewpoint;
-        root["rssi"] = rssi;
-        // root["SystemV"]["pfVcc"] = pfVcc/1000,3;
-        // root["SystemV"]["battery"] = battery/1000,3;
-        return root;
+        jsonDoc["DeviceName"] = vault.readDeviceName();
+        jsonDoc["DeviceID"] = vault.readDeviceID();
+        jsonDoc["HardwareID"] = hardwareID;
+        jsonDoc["tempF"] = TemperatureF;
+        jsonDoc["tempC"] = Temperature;
+        jsonDoc["humidity"] = Humidity;
+        jsonDoc["altitude"] = Altitude;
+        jsonDoc["pressure"] = Pressure;
+        jsonDoc["dewpoint"] = Dewpoint;
+        jsonDoc["rssi"] = rssi;
+        return jsonDoc;
 }
 
-void writeResponse(WiFiClient& client, JsonObject& json) {
+void writeResponse(WiFiClient& client, JsonDocument json) {
         client.println("HTTP/1.1 200 OK");
         client.println("Content-Type: application/json");
         client.println("Connection: close");
         client.println();
-        json.prettyPrintTo(client);
+        serializeJsonPretty(json, client);
         // display.clearDisplay();
+}
+
+void connectToWifi()
+{
+    Serial.print("Connecting to ");
+    Serial.println(vault.readSSID());
+    delay(100);
+    // Connect to WiFi network
+    WiFi.begin(vault.readSSID(), vault.readPassword());
+    WiFi.softAPdisconnect(true);
+    // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
+    delay(200);
+    Serial.println(WiFi.RSSI());
+    // Clear the buffer.
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        delay(2000);
+        Serial.print("");
+        Serial.println("");
+        Serial.print("Connecting to: ");
+        Serial.print(vault.readSSID());
+        Serial.println("");
+        Serial.print("Status: ");
+        Serial.print(WiFi.status());
+        Serial.println("");
+        Serial.print("IP Address: ");
+        Serial.print(WiFi.localIP());
+        Serial.println("");
+        Serial.print("Loop: ");
+        Serial.print(tracker);
+        Serial.println("");
+
+        display.clearDisplay();
+        display.setTextColor(WHITE);
+        display.setCursor(0,0);
+        display.println("Connecting to: ...");
+        display.println(vault.readSSID());
+        display.display();
+        tracker++;
+    }
+
+    connectionInfo();
+    delay(5000);
+
+    // Start the server
+    server.begin();
+    timeOut = 0;
+    // if (!client) return;
+
+    Serial.println("Server started");
+    Serial.println();
+    Serial.print("Please connect to http://");
+    // Serial.println("IP Address: ");
+    Serial.print(WiFi.localIP());
+    Serial.println();
 }
 
 void setup() {
     bool status;
-    Serial.println("OLED FeatherWing test");
+
     // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
     display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3C (for the 128x32)
     // init done
@@ -245,8 +297,6 @@ void setup() {
 }
 
 void loop() {
-    // Serial.println("Start: ");
-    // Serial.println(lastArea);
     WiFiClient client = server.available();
     // Serial.println("WiFi Started: ");
     if (client) { // We have a client connected
@@ -256,14 +306,26 @@ void loop() {
             readTempValues();
             display.clearDisplay();
             display.display();
-            StaticJsonBuffer<500> jsonBuffer;
-            JsonObject& json = prepareResponse(jsonBuffer);
+            StaticJsonDocument<750> jsonDoc;
+            JsonDocument json = prepareResponse(jsonDoc);
             writeResponse(client, json);
         }
-        delay(1000); // pause 10 milliseconds and then kill the connection
+        delay(100); // pause 10 milliseconds and then kill the connection
         client.stop();
-    }
 
+        timeOut = 0;
+    }else {
+        delay(1000);
+    }
+    timeOut++;
+    Serial.println(timeOut);
+
+    if (timeOut >= 300)
+    {
+        Serial.println("Attemping to reconnect");
+        // connectToWifi();
+        ESP.restart();
+    }
     // read the pushbutton input pin:
     buttonStateIP = digitalRead(vault.readButtonPinIP());
     // compare the buttonState to its previous state

@@ -6,3 +6,4 @@ Pubvars.h.gch
 .gcc-flags.json
 .vscode/c_cpp_properties.json
 .vscode
+.pio
